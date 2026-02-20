@@ -75,23 +75,20 @@ export default function App() {
   // Load user data when user or day changes
   useEffect(() => {
     if (currentUser) {
-      const loadData = async () => {
-        const record = await getRecord(currentUser, currentDay);
-        setCurrentRecord(record);
-        
-        const exp = await getTotalExp(currentUser);
-        setTotalExp(exp);
+      const record = getRecord(currentUser, currentDay);
+      setCurrentRecord(record);
+      
+      const exp = getTotalExp(currentUser);
+      setTotalExp(exp);
 
-        const leaderboard = await getLeaderboard();
-        const myRankIndex = leaderboard.findIndex(r => r.name === currentUser);
-        setRank(myRankIndex >= 0 ? myRankIndex + 1 : '-');
+      const leaderboard = getLeaderboard();
+      const myRankIndex = leaderboard.findIndex(r => r.name === currentUser);
+      setRank(myRankIndex >= 0 ? myRankIndex + 1 : '-');
 
-        // Calculate total quran pages
-        const allRecords = await getAllRecords(currentUser);
-        const pages = allRecords.reduce((sum, r) => sum + (r.quran_pages || 0), 0);
-        setTotalQuranPages(pages);
-      };
-      loadData();
+      // Calculate total quran pages
+      const allRecords = getAllRecords().filter(r => r.student_name === currentUser);
+      const pages = allRecords.reduce((sum, r) => sum + (r.quran_pages || 0), 0);
+      setTotalQuranPages(pages);
     }
   }, [currentUser, currentDay, activeSection]); // Reload on section change to refresh leaderboard/exp
 
@@ -105,12 +102,11 @@ export default function App() {
     setActiveSection('home');
   };
 
-  const handleSaveRecord = async (record: AmalanRecord) => {
-    await saveRecord(record);
+  const handleSaveRecord = (record: AmalanRecord) => {
+    saveRecord(record);
     setCurrentRecord(record);
     // Update exp immediately
-    const exp = await getTotalExp(currentUser!);
-    setTotalExp(exp);
+    setTotalExp(getTotalExp(currentUser!));
   };
 
   if (!currentUser) {

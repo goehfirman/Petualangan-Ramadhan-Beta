@@ -1,6 +1,8 @@
 import { AmalanRecord, StudentRank } from '../types';
 import { students } from '../data/students';
 
+const STORAGE_KEY = 'jurnal_ramadhan_data';
+
 export const calculateExp = (record: Partial<AmalanRecord>): number => {
   let exp = 0;
   
@@ -53,58 +55,71 @@ export const getRamadhanDay = (): number => {
   return diffDays + 1;
 };
 
-export const getAllRecords = async (studentName?: string): Promise<AmalanRecord[]> => {
+export const getAllRecords = (): AmalanRecord[] => {
   try {
-    const url = studentName 
-      ? `/api/records?student_name=${encodeURIComponent(studentName)}`
-      : '/api/records';
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch records');
-    return await response.json();
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
   } catch (e) {
     console.error("Failed to load data", e);
     return [];
   }
 };
 
-export const saveRecord = async (record: AmalanRecord) => {
-  try {
-    await fetch('/api/records', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record)
-    });
-  } catch (e) {
-    console.error("Failed to save data", e);
+export const saveRecord = (record: AmalanRecord) => {
+  const records = getAllRecords();
+  const index = records.findIndex(r => r.student_name === record.student_name && r.day === record.day);
+  
+  if (index >= 0) {
+    records[index] = record;
+  } else {
+    records.push(record);
   }
+  
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 };
 
-export const getRecord = async (studentName: string, day: number): Promise<AmalanRecord | undefined> => {
-  try {
-    const response = await fetch(`/api/records?student_name=${encodeURIComponent(studentName)}&day=${day}`);
-    if (!response.ok) return undefined;
-    const records = await response.json();
-    return records.length > 0 ? records[0] : undefined;
-  } catch (e) {
-    console.error("Failed to fetch record", e);
-    return undefined;
-  }
+export const getRecord = (studentName: string, day: number): AmalanRecord | undefined => {
+  const records = getAllRecords();
+  return records.find(r => r.student_name === studentName && r.day === day);
 };
 
-export const getTotalExp = async (studentName: string): Promise<number> => {
-  const records = await getAllRecords(studentName);
-  return records.reduce((sum, r) => sum + (r.total_exp || 0), 0);
+export const getTotalExp = (studentName: string): number => {
+  const records = getAllRecords();
+  return records
+    .filter(r => r.student_name === studentName)
+    .reduce((sum, r) => sum + r.total_exp, 0);
 };
 
-export const getLeaderboard = async (): Promise<StudentRank[]> => {
-  try {
-    const response = await fetch('/api/leaderboard');
-    if (!response.ok) throw new Error('Failed to fetch leaderboard');
-    return await response.json();
-  } catch (e) {
-    console.error("Failed to fetch leaderboard", e);
-    return [];
-  }
+export const getLeaderboard = (): StudentRank[] => {
+  // We need to include all students, even those with 0 EXP
+  const records = getAllRecords();
+  const expMap = new Map<string, number>();
+  
+  // Initialize with 0
+  students.forEach(s => expMap.set(s, 0));
+  
+  // Add actual exp
+  records.forEach(r => {
+    const current = expMap.get(r.student_name) || 0;
+    expMap.set(r.student_name, current + r.total_exp); // Note: total_exp is stored in record
+    // Or recalculate? Better to use stored total_exp if we trust it, or recalculate to be safe.
+    // Let's recalculate to be safe against corrupted data
+    // actually calculateExp takes a record.
+  });
+
+  // Re-calculate total from records to be sure
+  const calculatedExpMap = new Map<string, number>();
+  students.forEach(s => calculatedExpMap.set(s, 0));
+  
+  records.forEach(r => {
+    if (calculatedExpMap.has(r.student_name)) {
+       calculatedExpMap.set(r.student_name, calculatedExpMap.get(r.student_name)! + calculateExp(r));
+    }
+  });
+
+  return Array.from(calculatedExpMap.entries())
+    .map(([name, exp]) => ({ name, exp }))
+    .sort((a, b) => b.exp - a.exp);
 };
 
 export const getDateFromRamadhanDay = (day: number): Date => {
