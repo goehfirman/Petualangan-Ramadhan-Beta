@@ -10,7 +10,11 @@ export default function Leaderboard({ currentUser }: LeaderboardProps) {
   const [rankings, setRankings] = useState<StudentRank[]>([]);
 
   useEffect(() => {
-    setRankings(getLeaderboard());
+    const loadLeaderboard = async () => {
+      const data = await getLeaderboard();
+      setRankings(data);
+    };
+    loadLeaderboard();
   }, []);
 
   const myRankIndex = rankings.findIndex(r => r.name === currentUser);
