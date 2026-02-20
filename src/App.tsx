@@ -12,6 +12,7 @@ import Amalan from './components/Amalan';
 import Quran from './components/Quran';
 import Waktu from './components/Waktu';
 import Leaderboard from './components/Leaderboard';
+import Contact from './components/Contact';
 import { quotes } from './data/students';
 import { 
   getRamadhanDay, 
@@ -169,6 +170,8 @@ export default function App() {
           {activeSection === 'waktu' && <Waktu currentDate={currentDateString} />}
           
           {activeSection === 'leaderboard' && <Leaderboard currentUser={currentUser} />}
+          
+          {activeSection === 'contact' && <Contact />}
         </main>
       </div>
     </div>
