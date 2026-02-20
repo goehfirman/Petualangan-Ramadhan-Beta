@@ -76,6 +76,29 @@ export const saveRecord = (record: AmalanRecord) => {
   }
   
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  
+  // Sync to Google Sheets (Fire and forget)
+  syncToDatabase(record);
+};
+
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNDQu15Nq_uN4s0-ZHN-MdBSgGtD6F1gRm21QqVMpoVJNkF2FZtKCKGGuUePsc45amag/exec';
+
+const syncToDatabase = async (record: AmalanRecord) => {
+  try {
+    // We use no-cors to avoid CORS issues with Google Apps Script
+    // sending as text/plain allows the request to go through without preflight
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors', 
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: JSON.stringify(record)
+    });
+    console.log('Data synced to cloud');
+  } catch (error) {
+    console.error('Failed to sync data to cloud', error);
+  }
 };
 
 export const getRecord = (studentName: string, day: number): AmalanRecord | undefined => {
