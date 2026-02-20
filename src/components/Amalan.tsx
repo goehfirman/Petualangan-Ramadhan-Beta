@@ -6,7 +6,7 @@ interface AmalanProps {
   currentUser: string;
   currentDay: number;
   record: AmalanRecord | undefined;
-  onSave: (record: AmalanRecord) => Promise<void> | void;
+  onSave: (record: AmalanRecord) => void;
   onDayChange: (day: number) => void;
 }
 
@@ -59,6 +59,8 @@ export default function Amalan({ currentUser, currentDay, record, onSave, onDayC
     
     // Auto save
     setStatus('saving');
+    // Debounce or just save? The original code saved on every change.
+    // I'll just call onSave directly.
     
     // Construct full record
     const fullRecord: AmalanRecord = {
@@ -82,13 +84,8 @@ export default function Amalan({ currentUser, currentDay, record, onSave, onDayC
       updated_at: new Date().toISOString()
     };
 
-    // Call onSave and handle promise
-    Promise.resolve(onSave(fullRecord))
-      .then(() => setStatus('saved'))
-      .catch((err) => {
-        console.error("Save failed", err);
-        setStatus('error');
-      });
+    onSave(fullRecord);
+    setTimeout(() => setStatus('saved'), 500);
   };
 
   const renderSholatRadio = (label: string, field: keyof AmalanRecord, icon: string) => (

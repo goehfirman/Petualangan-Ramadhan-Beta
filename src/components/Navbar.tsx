@@ -17,7 +17,6 @@ export default function Navbar({ currentUser, totalExp, activeSection, onNavigat
     { id: 'quran', label: '📚 Khatam Quran' },
     { id: 'waktu', label: '🕌 Waktu Sholat' },
     { id: 'leaderboard', label: '🏆 Leaderboard' },
-    { id: 'contact', label: '📬 Hubungi Kami' },
   ];
 
   return (

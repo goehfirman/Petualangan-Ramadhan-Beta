@@ -1,6 +1,5 @@
 import { AmalanRecord, StudentRank } from '../types';
 import { students } from '../data/students';
-import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'jurnal_ramadhan_data';
 
@@ -56,152 +55,71 @@ export const getRamadhanDay = (): number => {
   return diffDays + 1;
 };
 
-// Helper to get local records synchronously (for fallback/cache)
-const getLocalRecords = (): AmalanRecord[] => {
+export const getAllRecords = (): AmalanRecord[] => {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
   } catch (e) {
-    console.error("Failed to load local data", e);
+    console.error("Failed to load data", e);
     return [];
   }
 };
 
-export const getAllRecords = async (studentName?: string): Promise<AmalanRecord[]> => {
-  try {
-    let query = supabase.from('amalan_records').select('*');
-    
-    if (studentName) {
-      query = query.eq('student_name', studentName);
-    }
-    
-    const { data, error } = await query;
-    
-    if (error) throw error;
-    
-    // Update local cache if we fetched everything (or merge?)
-    // For simplicity, we just return the data. 
-    // In a real offline-first app, we would merge.
-    if (data) return data as AmalanRecord[];
-    return [];
-  } catch (e) {
-    console.error("Failed to fetch records from Supabase", e);
-    return getLocalRecords(); // Fallback to local
-  }
-};
-
-export const saveRecord = async (record: AmalanRecord) => {
-  // 1. Save to Local Storage (Optimistic / Backup)
-  const localRecords = getLocalRecords();
-  const index = localRecords.findIndex(r => r.student_name === record.student_name && r.day === record.day);
+export const saveRecord = (record: AmalanRecord) => {
+  const records = getAllRecords();
+  const index = records.findIndex(r => r.student_name === record.student_name && r.day === record.day);
   
   if (index >= 0) {
-    localRecords[index] = record;
+    records[index] = record;
   } else {
-    localRecords.push(record);
+    records.push(record);
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(localRecords));
   
-  // 2. Save to Supabase
-  try {
-    // We need to remove 'id' if it exists in the record object to avoid issues, 
-    // but AmalanRecord type doesn't have id.
-    // However, Supabase returns it.
-    const { id, ...recordData } = record as any;
-    
-    const { error } = await supabase
-      .from('amalan_records')
-      .upsert(recordData, { onConflict: 'student_name,day' });
-      
-    if (error) throw error;
-    console.log('Saved to Supabase successfully');
-  } catch (e) {
-    console.error("Failed to save to Supabase", e);
-    // We already saved to local storage, so user data is safe locally.
-  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 };
 
-export const getRecord = async (studentName: string, day: number): Promise<AmalanRecord | undefined> => {
-  try {
-    const { data, error } = await supabase
-      .from('amalan_records')
-      .select('*')
-      .eq('student_name', studentName)
-      .eq('day', day)
-      .single();
-      
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
-    
-    if (data) return data as AmalanRecord;
-    
-    // Fallback to local if not found (maybe offline?)
-    const localRecords = getLocalRecords();
-    return localRecords.find(r => r.student_name === studentName && r.day === day);
-  } catch (e) {
-    console.error("Error fetching record", e);
-    const localRecords = getLocalRecords();
-    return localRecords.find(r => r.student_name === studentName && r.day === day);
-  }
+export const getRecord = (studentName: string, day: number): AmalanRecord | undefined => {
+  const records = getAllRecords();
+  return records.find(r => r.student_name === studentName && r.day === day);
 };
 
-export const getTotalExp = async (studentName: string): Promise<number> => {
-  try {
-    const { data, error } = await supabase
-      .from('amalan_records')
-      .select('total_exp')
-      .eq('student_name', studentName);
-      
-    if (error) throw error;
-    
-    return data?.reduce((sum, r) => sum + (r.total_exp || 0), 0) || 0;
-  } catch (e) {
-    console.error("Error calculating total EXP", e);
-    const localRecords = getLocalRecords();
-    return localRecords
-      .filter(r => r.student_name === studentName)
-      .reduce((sum, r) => sum + r.total_exp, 0);
-  }
+export const getTotalExp = (studentName: string): number => {
+  const records = getAllRecords();
+  return records
+    .filter(r => r.student_name === studentName)
+    .reduce((sum, r) => sum + r.total_exp, 0);
 };
 
-export const getLeaderboard = async (): Promise<StudentRank[]> => {
-  try {
-    // Fetch all records to calculate leaderboard
-    // In a production app with many records, you'd use a database view or RPC
-    const { data, error } = await supabase
-      .from('amalan_records')
-      .select('student_name, total_exp');
-      
-    if (error) throw error;
-    
-    const expMap = new Map<string, number>();
-    
-    // Initialize with 0 for all students
-    students.forEach(s => expMap.set(s, 0));
-    
-    // Sum up EXP from DB records
-    data?.forEach((r: any) => {
-      const current = expMap.get(r.student_name) || 0;
-      expMap.set(r.student_name, current + (r.total_exp || 0));
-    });
-    
-    return Array.from(expMap.entries())
-      .map(([name, exp]) => ({ name, exp }))
-      .sort((a, b) => b.exp - a.exp);
-      
-  } catch (e) {
-    console.error("Error fetching leaderboard", e);
-    // Fallback to local
-    const records = getLocalRecords();
-    const expMap = new Map<string, number>();
-    students.forEach(s => expMap.set(s, 0));
-    records.forEach(r => {
-      const current = expMap.get(r.student_name) || 0;
-      expMap.set(r.student_name, current + r.total_exp);
-    });
-    return Array.from(expMap.entries())
-      .map(([name, exp]) => ({ name, exp }))
-      .sort((a, b) => b.exp - a.exp);
-  }
+export const getLeaderboard = (): StudentRank[] => {
+  // We need to include all students, even those with 0 EXP
+  const records = getAllRecords();
+  const expMap = new Map<string, number>();
+  
+  // Initialize with 0
+  students.forEach(s => expMap.set(s, 0));
+  
+  // Add actual exp
+  records.forEach(r => {
+    const current = expMap.get(r.student_name) || 0;
+    expMap.set(r.student_name, current + r.total_exp); // Note: total_exp is stored in record
+    // Or recalculate? Better to use stored total_exp if we trust it, or recalculate to be safe.
+    // Let's recalculate to be safe against corrupted data
+    // actually calculateExp takes a record.
+  });
+
+  // Re-calculate total from records to be sure
+  const calculatedExpMap = new Map<string, number>();
+  students.forEach(s => calculatedExpMap.set(s, 0));
+  
+  records.forEach(r => {
+    if (calculatedExpMap.has(r.student_name)) {
+       calculatedExpMap.set(r.student_name, calculatedExpMap.get(r.student_name)! + calculateExp(r));
+    }
+  });
+
+  return Array.from(calculatedExpMap.entries())
+    .map(([name, exp]) => ({ name, exp }))
+    .sort((a, b) => b.exp - a.exp);
 };
 
 export const getDateFromRamadhanDay = (day: number): Date => {
@@ -248,53 +166,4 @@ export const convertToHijri = (date: Date): string => {
   const monthName = monthsHijri[hijriMonth - 1] || '';
   
   return `${hijriDay} ${monthName} ${hijriYear} H`;
-};
-
-export const exportDataToCSV = async () => {
-  const records = await getAllRecords();
-  if (records.length === 0) {
-    alert("Belum ada data untuk diekspor!");
-    return;
-  }
-
-  const headers = [
-    "student_name", "day", "sholat_subuh", "sholat_dzuhur", "sholat_ashar", 
-    "sholat_maghrib", "sholat_isya", "sholat_tarawih", "sholat_dhuha", 
-    "infaq", "dzikir", "itikaf", "tausiyah_ustadz", "tausiyah_tema", 
-    "tausiyah_intisari", "quran_pages", "total_exp", "updated_at"
-  ];
-
-  const csvContent = [
-    headers.join(","),
-    ...records.map(r => [
-      `"${r.student_name}"`,
-      r.day,
-      r.sholat_subuh || "",
-      r.sholat_dzuhur || "",
-      r.sholat_ashar || "",
-      r.sholat_maghrib || "",
-      r.sholat_isya || "",
-      r.sholat_tarawih || "",
-      r.sholat_dhuha,
-      r.infaq,
-      r.dzikir,
-      r.itikaf,
-      `"${(r.tausiyah_ustadz || "").replace(/"/g, '""')}"`,
-      `"${(r.tausiyah_tema || "").replace(/"/g, '""')}"`,
-      `"${(r.tausiyah_intisari || "").replace(/"/g, '""')}"`,
-      r.quran_pages,
-      r.total_exp,
-      r.updated_at
-    ].join(","))
-  ].join("\n");
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(blob);
-  link.setAttribute("href", url);
-  link.setAttribute("download", "petualangan_ramadhan_data.csv");
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 };
