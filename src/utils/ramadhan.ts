@@ -81,21 +81,45 @@ export const saveRecord = (record: AmalanRecord) => {
   syncToDatabase(record);
 };
 
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwNDQu15Nq_uN4s0-ZHN-MdBSgGtD6F1gRm21QqVMpoVJNkF2FZtKCKGGuUePsc45amag/exec';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZbATi5QWcVNtojedBnxAlETursyCdBHUxZK6oMsE8-k3HmizsSy672Rg7a9Ih2G0V/exec';
 
 const syncToDatabase = async (record: AmalanRecord) => {
+  console.log('Syncing to cloud...', record);
+  
   try {
-    // We use no-cors to avoid CORS issues with Google Apps Script
-    // sending as text/plain allows the request to go through without preflight
+    // Prepare data as URL encoded form data
+    // This is more robust for Google Apps Script than raw JSON body
+    // because it handles redirects better and populates e.parameter
+    const formData = new URLSearchParams();
+    
+    // Add a timestamp to prevent caching
+    formData.append('timestamp', new Date().toISOString());
+    
+    // Add the full JSON object as a single parameter for scripts that parse 'data' or 'json'
+    formData.append('json', JSON.stringify(record));
+    formData.append('data', JSON.stringify(record));
+    
+    // Also add individual fields for scripts that use e.parameter.field_name
+    Object.entries(record).forEach(([key, value]) => {
+      if (value === null || value === undefined) {
+        formData.append(key, '');
+      } else {
+        formData.append(key, String(value));
+      }
+    });
+
+    // Send using no-cors to allow the request to go through despite CORS policies
+    // Content-Type must be application/x-www-form-urlencoded for this to work as a simple request
     await fetch(GOOGLE_SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors', 
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify(record)
+      body: formData.toString()
     });
-    console.log('Data synced to cloud');
+    
+    console.log('Sync request sent successfully');
   } catch (error) {
     console.error('Failed to sync data to cloud', error);
   }
