@@ -167,3 +167,52 @@ export const convertToHijri = (date: Date): string => {
   
   return `${hijriDay} ${monthName} ${hijriYear} H`;
 };
+
+export const exportDataToCSV = () => {
+  const records = getAllRecords();
+  if (records.length === 0) {
+    alert("Belum ada data untuk diekspor!");
+    return;
+  }
+
+  const headers = [
+    "student_name", "day", "sholat_subuh", "sholat_dzuhur", "sholat_ashar", 
+    "sholat_maghrib", "sholat_isya", "sholat_tarawih", "sholat_dhuha", 
+    "infaq", "dzikir", "itikaf", "tausiyah_ustadz", "tausiyah_tema", 
+    "tausiyah_intisari", "quran_pages", "total_exp", "updated_at"
+  ];
+
+  const csvContent = [
+    headers.join(","),
+    ...records.map(r => [
+      `"${r.student_name}"`,
+      r.day,
+      r.sholat_subuh || "",
+      r.sholat_dzuhur || "",
+      r.sholat_ashar || "",
+      r.sholat_maghrib || "",
+      r.sholat_isya || "",
+      r.sholat_tarawih || "",
+      r.sholat_dhuha,
+      r.infaq,
+      r.dzikir,
+      r.itikaf,
+      `"${(r.tausiyah_ustadz || "").replace(/"/g, '""')}"`,
+      `"${(r.tausiyah_tema || "").replace(/"/g, '""')}"`,
+      `"${(r.tausiyah_intisari || "").replace(/"/g, '""')}"`,
+      r.quran_pages,
+      r.total_exp,
+      r.updated_at
+    ].join(","))
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+  link.setAttribute("download", "petualangan_ramadhan_data.csv");
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};

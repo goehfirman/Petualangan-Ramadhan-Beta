@@ -1,4 +1,5 @@
 import React from 'react';
+import { exportDataToCSV } from '../utils/ramadhan';
 
 interface HomeProps {
   day: number;
@@ -58,6 +59,24 @@ export default function Home({ day, exp, quranPages, rank, quote, onNavigate }: 
           <div className="text-4xl mb-3 group-hover:scale-110 transition">🏆</div>
           <h3 className="font-bold text-yellow-300">Leaderboard</h3>
           <p className="text-sm text-white/60">Lihat peringkatmu</p>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <a 
+          href="/database_template.csv" 
+          download="database_template.csv"
+          className="bg-white/5 rounded-xl p-4 border border-white/10 text-center hover:bg-white/10 transition group cursor-pointer flex flex-col items-center justify-center"
+        >
+          <div className="text-2xl mb-2 group-hover:scale-110 transition">📄</div>
+          <h3 className="font-bold text-white/80 text-sm">Download Template CSV</h3>
+        </a>
+        <button 
+          onClick={exportDataToCSV}
+          className="bg-white/5 rounded-xl p-4 border border-white/10 text-center hover:bg-white/10 transition group cursor-pointer flex flex-col items-center justify-center"
+        >
+          <div className="text-2xl mb-2 group-hover:scale-110 transition">💾</div>
+          <h3 className="font-bold text-white/80 text-sm">Export Data Saya</h3>
         </button>
       </div>
 
